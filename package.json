@@ -1,0 +1,31 @@
+{
+    "name": "homebridge-aquarium",
+    "version": "0.0.1",
+    "description": "This is a homebridge plugin for profilux3",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/thncode/homebridge-aquarium.git"
+    },
+    "keywords": [
+        "homebridge",
+        "homebridge-plugin",
+        "HomeKit"
+    ],
+    "author": "Thomas Nemec",
+    "license": "ISC",
+    "bugs": {
+        "url": "https://github.com/thncode/homebridge-aquarium/issues"
+    },
+    "homepage": "https://github.com/thncode/homebridge-aquarium#readme",
+    "engines" : {
+        "node": ">=0.12.0",
+        "homebridge": ">=0.2.0"
+    },
+    "dependencies" :{
+        "fakegato-history": "^0.4.0"
+    }
+}
