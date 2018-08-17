@@ -59,6 +59,20 @@ function AquariumPlugin(log, config) {
 
     // Setup services
     this.setUpServices();
+    
+    var url = "http://192.168.178.21/sensors.html";
+    var body;
+    
+    this.httpRequest(url, body, "POST", "thomas", "", "sendimmediately", function(error, response, responseBody) {
+      if (error) {
+        this.log('HTTP function failed: %s', error.message);
+        callback(error);
+      } else {
+        this.log('HTTP function succeeded!');
+        this.log(response);
+        this.log(responseBody);
+        callback();
+      }
 }
 
 
