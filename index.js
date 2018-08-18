@@ -50,7 +50,6 @@ function AquariumPlugin(log, config) {
     this.name = config.name;
     this.displayName = this.name;
     this.deviceId = config.deviceId;
-    this.interval = Math.min(Math.max(config.interval, 1), 600);
 
     this.config = config;
 
@@ -81,7 +80,7 @@ function AquariumPlugin(log, config) {
 
 
 AquariumPlugin.prototype.getFirmwareRevision = function (callback) {
-    callback(null, '0.0.0');
+    callback(null, '1.0.0');
 };
 
 AquariumPlugin.prototype.getBatteryLevel = function (callback) {
@@ -113,7 +112,7 @@ AquariumPlugin.prototype.setUpServices = function () {
     this.informationService = new Service.AccessoryInformation();
 
     this.informationService
-        .setCharacteristic(Characteristic.Manufacturer, this.config.manufacturer)
+        .setCharacteristic(Characteristic.Manufacturer, "Thomas Nemec")
         .setCharacteristic(Characteristic.Model, this.config.model || "Aquarium")
         .setCharacteristic(Characteristic.SerialNumber, this.config.serial || hostname + "-" + this.name);
     this.informationService.getCharacteristic(Characteristic.FirmwareRevision)
@@ -150,8 +149,8 @@ AquariumPlugin.prototype.setUpServices = function () {
     */
 
     // pH characteristic
-    SoilMoisture = function () {
-        Characteristic.call(this, 'Soil Moisture', 'E863F10F-079E-48FF-8F27-9C2605A29F52');
+    pHvalue = function () {
+        Characteristic.call(this, 'pH', 'E863F10F-079E-48FF-8F27-9C2605A29F52');
         this.setProps({
             format: Characteristic.Formats.UINT16,
             unit: "pH",
@@ -163,9 +162,9 @@ AquariumPlugin.prototype.setUpServices = function () {
         this.value = this.getDefaultValue();
     };
 
-    inherits(SoilMoisture, Characteristic);
+    inherits(pHvalue, Characteristic);
 
-    SoilMoisture.UUID = 'E863F10F-079E-48FF-8F27-9C2605A29F52';
+    pHvalue.UUID = 'E863F10F-079E-48FF-8F27-9C2605A29F52';
 
 
 
@@ -174,7 +173,7 @@ AquariumPlugin.prototype.setUpServices = function () {
         Service.call(this, displayName, '3C233958-B5C4-4218-A0CD-60B8B971AA0A', subtype);
 
         // Required Characteristics
-        this.addCharacteristic(SoilMoisture);
+        this.addCharacteristic(pHvalue);
 
         // Optional Characteristics
         this.addOptionalCharacteristic(Characteristic.CurrentTemperature);
@@ -185,7 +184,7 @@ AquariumPlugin.prototype.setUpServices = function () {
     AquaSensor.UUID = '3C233958-B5C4-4218-A0CD-60B8B971AA0A';
 
     this.aquaSensorService = new AquaSensor(this.name);
-    this.aquaSensorService.getCharacteristic(SoilMoisture)
+    this.aquaSensorService.getCharacteristic(pHvalue)
         .on('get', this.getCurrentMoisture.bind(this));
     this.aquaSensorService.getCharacteristic(Characteristic.CurrentTemperature)
         .on('get', this.getCurrentTemperature.bind(this));
