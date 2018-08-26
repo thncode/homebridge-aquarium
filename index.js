@@ -19,6 +19,8 @@ var temp;
 var niveau;
 var url;
 var body;
+var minTemp, maxTemp;
+var minpH, maxpH;
 
 
 function read() {
@@ -53,7 +55,12 @@ function AquariumPlugin(log, config) {
 
     this.config = config;
 
-	url = "http://192.168.178.21/sensors.html";
+	url = config['url'];
+	
+	minTemp = config['minTemp'];
+	maxTemp = config['maxTemp'];
+	minpH = config['minpH'];
+	maxpH = config['maxpH'];
 
     // Setup services
     this.setUpServices();
@@ -66,12 +73,13 @@ function AquariumPlugin(log, config) {
 			
 			read();
 			
-			that.log("pH Wert: " + ph + " Temperatur: " + temp + " Leakage: " + niveau);
+			var leakage = niveau == "+ 2" ? "" : " Leakage!"
+			that.log("pH Wert: " + ph + " Temperatur: " + temp + leakage);
 
 			that.fakeGatoHistoryService.addEntry({
 				time: new Date().getTime() / 1000,
 				temp: temp,
-				pressure: ph * 1000
+				pressure: ph * 100
 				});
 		}
 	}, 60000); // ev 1 min
@@ -83,28 +91,28 @@ AquariumPlugin.prototype.getFirmwareRevision = function (callback) {
     callback(null, '1.0.0');
 };
 
-AquariumPlugin.prototype.getBatteryLevel = function (callback) {
-    callback(null, 100);
-};
-
 AquariumPlugin.prototype.getStatusActive = function (callback) {
     callback(null, true);
 };
 
-AquariumPlugin.prototype.getStatusLowBattery = function (callback) {
-    callback(null, Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL);
-};
+AquariumPlugin.prototype.getStatusLimit = function (callback) {
+	var limit = Characteristic.ContactSensorState.CONTACT_NOT_DETECTED;
+	if (temp < minTemp || temp > maxTemp || ph < minpH || ph > maxpH) limit = Characteristic.ContactSensorState.CONTACT_DETECTED;
+    callback(null, limit);
+ };
 
 AquariumPlugin.prototype.getStatusLeak = function (callback) {
-    callback(null, true ? Characteristic.ContactSensorState.CONTACT_NOT_DETECTED : Characteristic.ContactSensorState.CONTACT_DETECTED);
+	var leak = Characteristic.LeakDetected.CONTACT_NOT_DETECTED;
+	if (niveau != "+ 2") leak = Characteristic.LeakDetected.CONTACT_DETECTED;
+    callback(null, leak);
  };
 
 AquariumPlugin.prototype.getCurrentTemperature = function (callback) {
     callback(null, temp);
 };
 
-AquariumPlugin.prototype.getCurrentMoisture = function (callback) {
-    callback(null, ph * 1000);
+AquariumPlugin.prototype.getCurrentHardness = function (callback) {
+    callback(null, ph * 100);
 };
 
 AquariumPlugin.prototype.setUpServices = function () {
@@ -117,32 +125,26 @@ AquariumPlugin.prototype.setUpServices = function () {
         .setCharacteristic(Characteristic.SerialNumber, this.config.serial || hostname + "-" + this.name);
     this.informationService.getCharacteristic(Characteristic.FirmwareRevision)
         .on('get', this.getFirmwareRevision.bind(this));
-    this.batteryService = new Service.BatteryService(this.name);
-    this.batteryService.getCharacteristic(Characteristic.BatteryLevel)
-        .on('get', this.getBatteryLevel.bind(this));
-    this.batteryService.setCharacteristic(Characteristic.ChargingState, Characteristic.ChargingState.NOT_CHARGEABLE);
-    this.batteryService.getCharacteristic(Characteristic.StatusLowBattery)
-        .on('get', this.getStatusLowBattery.bind(this));
 
     this.tempService = new Service.TemperatureSensor("Temperatur");
     this.tempService.getCharacteristic(Characteristic.CurrentTemperature)
         .on('get', this.getCurrentTemperature.bind(this));
-    this.tempService.getCharacteristic(Characteristic.StatusLowBattery)
-        .on('get', this.getStatusLowBattery.bind(this));
     this.tempService.getCharacteristic(Characteristic.StatusActive)
         .on('get', this.getStatusActive.bind(this));
 
-    if (true) {
-        this.humidityAlertService = new Service.ContactSensor(this.name + " leak detected", "leak");
-        this.humidityAlertService.getCharacteristic(Characteristic.ContactSensorState)
-            .on('get', this.getStatusLeak.bind(this));
-        this.humidityAlertService.getCharacteristic(Characteristic.StatusLowBattery)
-            .on('get', this.getStatusLowBattery.bind(this));
-        this.humidityAlertService.getCharacteristic(Characteristic.StatusActive)
-            .on('get', this.getStatusActive.bind(this));
-    }
+	this.limitAlertService = new Service.ContactSensor(this.name + " Limit", "limit");
+	this.limitAlertService.getCharacteristic(Characteristic.ContactSensorState)
+		.on('get', this.getStatusLimit.bind(this));
+	this.limitAlertService.getCharacteristic(Characteristic.StatusActive)
+		.on('get', this.getStatusActive.bind(this));
 
-    this.fakeGatoHistoryService = new FakeGatoHistoryService("room", this, { storage: 'fs' });
+	this.leakAlertService = new Service.LeakSensor(this.name + " Leck", "leak");
+	this.leakAlertService.getCharacteristic(Characteristic.LeakDetected)
+		.on('get', this.getStatusLeak.bind(this));
+	this.leakAlertService.getCharacteristic(Characteristic.StatusActive)
+		.on('get', this.getStatusActive.bind(this));
+
+    this.fakeGatoHistoryService = new FakeGatoHistoryService("weather", this, { storage: 'fs' });
 
     /*
         own characteristics and services
@@ -154,9 +156,9 @@ AquariumPlugin.prototype.setUpServices = function () {
         this.setProps({
             format: Characteristic.Formats.UINT16,
             unit: "pH",
-            maxValue: 9000,
-            minValue: 0,
-            minStep: 0.1,
+            maxValue: 1100,
+            minValue: 600,
+            minStep: 1,
             perms: [Characteristic.Perms.READ, Characteristic.Perms.NOTIFY]
         });
         this.value = this.getDefaultValue();
@@ -185,18 +187,19 @@ AquariumPlugin.prototype.setUpServices = function () {
 
     this.aquaSensorService = new AquaSensor(this.name);
     this.aquaSensorService.getCharacteristic(pHvalue)
-        .on('get', this.getCurrentMoisture.bind(this));
+        .on('get', this.getCurrentHardness.bind(this));
     this.aquaSensorService.getCharacteristic(Characteristic.CurrentTemperature)
         .on('get', this.getCurrentTemperature.bind(this));
-    this.aquaSensorService.getCharacteristic(Characteristic.ContactSensorState)
-        .on('get', this.getStatusLeak.bind(this));
+    //this.aquaSensorService.getCharacteristic(Characteristic.ContactSensorState)
+    //    .on('get', this.getStatusLimit.bind(this));
 };
 
 
 AquariumPlugin.prototype.getServices = function () {
     var services = [this.informationService, 
-					this.batteryService, 
 					this.aquaSensorService, 
+					this.limitAlertService, 
+					this.leakAlertService, 
 					this.fakeGatoHistoryService];
 
     return services;
